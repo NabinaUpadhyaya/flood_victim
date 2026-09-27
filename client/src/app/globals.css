@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --primary-dark: #123B5D;
+    --primary: #176B87;
+    --teal-accent: #0F766E;
+    --light-teal: #DFF5F2;
+    --page-bg: #F4F8FA;
+    --surface: #FFFFFF;
+    --main-text: #1E293B;
+    --secondary-text: #64748B;
+    --border: #D8E2E8;
+    --hover-bg: #E8F3F6;
+
+    --success: #16803C;
+    --warning: #D97706;
+    --danger: #DC2626;
+    --info: #0284C7;
+  }
+
+  body {
+    background-color: #F4F8FA;
+    color: #1E293B;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #F4F8FA;
+}
+::-webkit-scrollbar-thumb {
+  background: #D8E2E8;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #176B87;
+}
+
+/* Form inputs styling */
+.form-input, .form-select, .form-textarea {
+  display: block;
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid #D8E2E8;
+  background-color: #FFFFFF;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.95rem;
+  color: #1E293B;
+  transition: all 0.15s ease-in-out;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  outline: none;
+  border-color: #176B87;
+  box-shadow: 0 0 0 3px rgba(23, 107, 135, 0.18);
+}
+
+.form-input:disabled, .form-select:disabled, .form-textarea:disabled {
+  background-color: #F4F8FA;
+  cursor: not-allowed;
+  color: #64748B;
+}
+
+/* Badge styles */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-width: 1px;
+}
+
+/* Glassmorphism card header */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
