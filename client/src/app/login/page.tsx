@@ -379,7 +379,7 @@ export default function LoginPage() {
           </form>
 
           {/* Quick Demo Credentials Box */}
-          <div className="pt-4 border-t border-[#D8E2E8]/60">
+          {/* <div className="pt-4 border-t border-[#D8E2E8]/60">
             <p className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider text-center mb-2.5">
               द्रुत परीक्षण खाताहरू (Quick Test Accounts)
             </p>
@@ -436,7 +436,7 @@ export default function LoginPage() {
                 </div>
               </button>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
 

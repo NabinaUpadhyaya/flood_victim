@@ -20,12 +20,16 @@ import {
 } from 'lucide-react';
 import { IncidentRecord } from '@/types';
 import {
-  NEPAL_DISTRICTS,
   INCIDENT_TYPES,
   GENDER_OPTIONS,
   SEARCH_STATUS_OPTIONS,
   CONDITION_OPTIONS,
 } from '@/services/nepalData';
+import {
+  getDistricts,
+  getMunicipalities,
+  getWards,
+} from '@/services/nepalGeoData';
 
 const getTodayStr = (): string => {
   try {
@@ -581,6 +585,16 @@ export default function IncidentForm({
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
+  // ─── Nepal Cascading Geo Data ───────────────────────────────────────────────
+  const ALL_DISTRICTS = getDistricts();
+  const availableMunicipalities = formData.district
+    ? getMunicipalities(formData.district)
+    : [];
+  const availableWards = formData.district && formData.municipality
+    ? getWards(formData.district, formData.municipality)
+    : [];
+  // ────────────────────────────────────────────────────────────────────────────
+
   const todayStr = getTodayStr();
 
   const handleChange = (
@@ -601,6 +615,54 @@ export default function IncidentForm({
         return copy;
       });
     }
+  };
+
+  /** When district changes → reset municipality + ward */
+  const handleDistrictChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newDistrict = e.target.value;
+    setFormData((prev) => ({
+      ...prev,
+      district: newDistrict,
+      municipality: '',
+      ward_number: undefined,
+    }));
+    setFormErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.district;
+      delete copy.municipality;
+      delete copy.ward_number;
+      return copy;
+    });
+  };
+
+  /** When municipality changes → reset ward */
+  const handleMunicipalityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newMun = e.target.value;
+    setFormData((prev) => ({
+      ...prev,
+      municipality: newMun,
+      ward_number: undefined,
+    }));
+    setFormErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.municipality;
+      delete copy.ward_number;
+      return copy;
+    });
+  };
+
+  /** When ward changes */
+  const handleWardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setFormData((prev) => ({
+      ...prev,
+      ward_number: val ? Number(val) : undefined,
+    }));
+    setFormErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.ward_number;
+      return copy;
+    });
   };
 
   const handleDateChange = (name: string, value: string) => {
@@ -809,13 +871,14 @@ export default function IncidentForm({
               जिल्ला (District) <span className="text-rose-500">*</span>
             </label>
             <select
+              id="field-district"
               name="district"
               value={formData.district || ''}
-              onChange={handleChange}
+              onChange={handleDistrictChange}
               className={`form-select ${formErrors.district ? 'border-rose-400 bg-rose-50/20' : ''}`}
             >
               <option value="">-- जिल्ला छान्नुहोस् --</option>
-              {NEPAL_DISTRICTS.map((d) => (
+              {ALL_DISTRICTS.map((d) => (
                 <option key={d} value={d}>
                   {d}
                 </option>
@@ -831,14 +894,25 @@ export default function IncidentForm({
             <label className="block text-xs font-semibold text-slate-700 mb-1">
               पालिका (Municipality/Rural Municipality) <span className="text-rose-500">*</span>
             </label>
-            <input
-              type="text"
+            <select
+              id="field-municipality"
               name="municipality"
               value={formData.municipality || ''}
-              onChange={handleChange}
-              placeholder=""
-              className={`form-input ${formErrors.municipality ? 'border-rose-400 bg-rose-50/20' : ''}`}
-            />
+              onChange={handleMunicipalityChange}
+              disabled={!formData.district}
+              className={`form-select ${
+                formErrors.municipality ? 'border-rose-400 bg-rose-50/20' : ''
+              } ${!formData.district ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <option value="">
+                {formData.district ? '-- पालिका छान्नुहोस् --' : '-- पहिले जिल्ला छान्नुहोस् --'}
+              </option>
+              {availableMunicipalities.map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.name} ({m.wards} वडा)
+                </option>
+              ))}
+            </select>
             {formErrors.municipality && (
               <p className="text-xs text-rose-500 mt-1">{formErrors.municipality}</p>
             )}
@@ -849,16 +923,25 @@ export default function IncidentForm({
             <label className="block text-xs font-semibold text-slate-700 mb-1">
               वडा नं. (Ward No.) <span className="text-rose-500">*</span>
             </label>
-            <input
-              type="number"
+            <select
+              id="field-ward-number"
               name="ward_number"
-              min="1"
-              max="100"
               value={formData.ward_number ?? ''}
-              onChange={handleChange}
-              placeholder=""
-              className={`form-input ${formErrors.ward_number ? 'border-rose-400 bg-rose-50/20' : ''}`}
-            />
+              onChange={handleWardChange}
+              disabled={!formData.municipality || availableWards.length === 0}
+              className={`form-select ${
+                formErrors.ward_number ? 'border-rose-400 bg-rose-50/20' : ''
+              } ${!formData.municipality ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <option value="">
+                {formData.municipality ? '-- वडा छान्नुहोस् --' : '-- पहिले पालिका छान्नुहोस् --'}
+              </option>
+              {availableWards.map((w) => (
+                <option key={w} value={w}>
+                  वडा नं. {w}
+                </option>
+              ))}
+            </select>
             {formErrors.ward_number && (
               <p className="text-xs text-rose-500 mt-1">{formErrors.ward_number}</p>
             )}
