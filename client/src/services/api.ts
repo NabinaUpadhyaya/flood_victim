@@ -4,7 +4,7 @@
 
 import { FilterParams, IncidentRecord, StatsResponse, User, UserAuditLogsResponse } from '../types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.NEXT_API_URL || 'http://localhost:5000/api';
 
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
