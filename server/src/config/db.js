@@ -7,18 +7,34 @@ const mysql = require('mysql2/promise');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || '127.0.0.1',
-  port: parseInt(process.env.DB_PORT || '3306', 10),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'insec_data',
-  waitForConnections: true,
-  connectionLimit: 15,
-  queueLimit: 0,
-  charset: 'utf8mb4',
-  timezone: '+05:45', // Nepal Standard Time
-});
+const dbConfig = process.env.DATABASE_URL
+  ? {
+      uri: process.env.DATABASE_URL,
+      waitForConnections: true,
+      connectionLimit: 15,
+      queueLimit: 0,
+      charset: 'utf8mb4',
+      timezone: '+05:45',
+      ssl: process.env.DB_SSL === 'false' ? undefined : { rejectUnauthorized: false },
+    }
+  : {
+      host: process.env.DB_HOST || '127.0.0.1',
+      port: parseInt(process.env.DB_PORT || '3306', 10),
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'insec_data',
+      waitForConnections: true,
+      connectionLimit: 15,
+      queueLimit: 0,
+      charset: 'utf8mb4',
+      timezone: '+05:45', // Nepal Standard Time
+      ssl:
+        process.env.DB_SSL === 'true' || process.env.DB_SSL === '1'
+          ? { rejectUnauthorized: false }
+          : undefined,
+    };
+
+const pool = mysql.createPool(dbConfig);
 
 // Test connection on startup
 async function testConnection() {
