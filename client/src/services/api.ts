@@ -7,7 +7,7 @@ import { FilterParams, IncidentRecord, StatsResponse, User, UserAuditLogsRespons
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.NEXT_API_URL ||
-  'http://localhost:5000/api';
+  'https://flood-victim.onrender.com/api';
 
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
