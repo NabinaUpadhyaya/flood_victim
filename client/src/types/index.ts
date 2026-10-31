@@ -56,6 +56,10 @@ export interface IncidentRecord {
   signature_info?: string | null;
   collection_sign_date?: string | null;
 
+  photo_path?: string | null;
+  submitted_by_name?: string | null;
+  submitted_by?: string | null;
+
   created_by?: number | null;
   updated_by?: number | null;
   creator_name?: string | null;

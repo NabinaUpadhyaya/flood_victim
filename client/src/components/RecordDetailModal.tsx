@@ -12,7 +12,9 @@ import {
   Users,
   CheckCircle,
   Edit,
+  Camera,
 } from 'lucide-react';
+import { getPhotoUrl } from '@/services/api';
 import { IncidentRecord, UserRole } from '@/types';
 import {
   getIncidentLabel,
@@ -147,17 +149,44 @@ export default function RecordDetailModal({ record, userRole, onClose }: RecordD
               icon={<UserIcon className="w-4 h-4" />}
               title="१. व्यक्तिगत विवरण (Person Details)"
             />
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <Field label="नाम, थर (Full Name)" value={record.full_name} />
-              <Field
-                label="उमेर (Age)"
-                value={record.age != null ? `${record.age} वर्ष` : '-'}
-              />
-              <Field label="लिङ्ग (Gender)" value={getGenderLabel(record.gender)} />
-              <Field
-                label="परिवारको नाम / सम्पर्क व्यक्ति (Family Contact)"
-                value={record.family_contact}
-              />
+            <div className="flex flex-col sm:flex-row gap-5 items-start">
+              {record.photo_path ? (
+                <div className="shrink-0 flex flex-col items-center">
+                  <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-xl overflow-hidden border-2 border-white shadow-md bg-slate-200">
+                    <img
+                      src={getPhotoUrl(record.photo_path) || ''}
+                      alt={record.full_name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span className="text-[11px] text-[#64748B] font-medium mt-1">
+                    प्रभावितको फोटो
+                  </span>
+                </div>
+              ) : null}
+              <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-4 w-full">
+                <Field label="नाम, थर (Full Name)" value={record.full_name} />
+                <Field
+                  label="उमेर (Age)"
+                  value={record.age != null ? `${record.age} वर्ष` : '-'}
+                />
+                <Field label="लिङ्ग (Gender)" value={getGenderLabel(record.gender)} />
+                <Field
+                  label="परिवारको नाम / सम्पर्क व्यक्ति (Family Contact)"
+                  value={record.family_contact}
+                />
+                <Field label="सम्पर्क फोन (Phone)" value={record.phone} />
+                {record.photo_path && (
+                  <Field
+                    label="फोटो मार्ग (Photo Path)"
+                    value={
+                      <span className="font-mono text-xs text-[#176B87] break-all">
+                        {record.photo_path}
+                      </span>
+                    }
+                  />
+                )}
+              </div>
             </div>
           </div>
 
@@ -380,7 +409,11 @@ export default function RecordDetailModal({ record, userRole, onClose }: RecordD
           {/* System info */}
           <div className="text-xs text-[#94A3B8] flex flex-wrap gap-x-4 gap-y-1 pt-1">
             <span>दर्ता मिति: {record.created_at ? new Date(record.created_at).toLocaleString('ne-NP') : '-'}</span>
-            {record.creator_name && <span>दर्ता गर्नुभएको: {record.creator_name}</span>}
+            {(record.submitted_by || record.submitted_by_name || record.creator_name) && (
+              <span className="font-medium text-slate-600">
+                दर्ता गर्ने (Submitted By): <strong className="text-[#123B5D]">{record.submitted_by || record.submitted_by_name || record.creator_name}</strong>
+              </span>
+            )}
             {record.updated_at && record.updater_name && (
               <span>
                 अद्यावधिक: {new Date(record.updated_at).toLocaleString('ne-NP')} ({record.updater_name})

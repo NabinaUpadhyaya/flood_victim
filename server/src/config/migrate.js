@@ -1,6 +1,7 @@
 /**
  * Database Auto-Migration Helper
- * Ensures `is_verified` column, `user_otps`, and `user_audit_logs` tables exist.
+ * Ensures `is_verified` column, `user_otps`, `user_audit_logs` tables exist,
+ * and ensures `photo_path` and `submitted_by_name` columns exist on `incident_records`.
  */
 
 const pool = require('./db');
@@ -59,6 +60,32 @@ async function runMigrations() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    // 3.1 Ensure photo_path in incident_records
+    const [photoCols] = await pool.query("SHOW COLUMNS FROM incident_records LIKE 'photo_path'");
+    if (photoCols.length === 0) {
+      await pool.query("ALTER TABLE incident_records ADD COLUMN photo_path VARCHAR(255) NULL AFTER signature_info");
+      console.log('✅ Added photo_path column to incident_records table');
+    }
+
+    // 3.2 Ensure submitted_by_name in incident_records
+    const [submitterCols] = await pool.query("SHOW COLUMNS FROM incident_records LIKE 'submitted_by_name'");
+    if (submitterCols.length === 0) {
+      await pool.query("ALTER TABLE incident_records ADD COLUMN submitted_by_name VARCHAR(150) NULL AFTER created_by");
+      console.log('✅ Added submitted_by_name column to incident_records table');
+    }
+
+    // 3.3 Backfill submitted_by_name from existing users where created_by is known
+    try {
+      await pool.query(`
+        UPDATE incident_records ir
+        INNER JOIN users u ON ir.created_by = u.id
+        SET ir.submitted_by_name = u.name
+        WHERE (ir.submitted_by_name IS NULL OR ir.submitted_by_name = '') AND ir.created_by IS NOT NULL
+      `);
+    } catch (e) {
+      // Non-fatal if no matching rows
+    }
+
     // 4. Ensure administrator account exists for configured SMTP email
     const smtpEmail = (process.env.SMTP_USER || '').trim().toLowerCase();
     if (smtpEmail && smtpEmail.includes('@') && !smtpEmail.includes('your_email')) {
@@ -74,7 +101,23 @@ async function runMigrations() {
       }
     }
 
-    console.log('✅ Database schema verified (user_otps & user_audit_logs ready)');
+
+    // 3.4 Ensure existing photo_path entries include full domain URL
+    const defaultBaseUrl = process.env.APP_URL || process.env.BASE_URL || 'http://localhost:5000';
+    try {
+      await pool.query(`
+        UPDATE incident_records 
+        SET photo_path = CONCAT(?, photo_path) 
+        WHERE photo_path IS NOT NULL 
+          AND photo_path != '' 
+          AND photo_path NOT LIKE 'http://%' 
+          AND photo_path NOT LIKE 'https://%'
+      `, [defaultBaseUrl]);
+    } catch (e) {
+      // Non-fatal
+    }
+
+    console.log('✅ Database schema verified (photo_path, submitted_by_name ready)');
   } catch (error) {
     console.error('❌ Migration error:', error.message);
   }

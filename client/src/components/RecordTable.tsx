@@ -20,6 +20,7 @@ import {
   getGenderLabel,
   getVerificationBadge,
 } from '@/services/nepalData';
+import { getPhotoUrl } from '@/services/api';
 
 interface RecordTableProps {
   records: IncidentRecord[];
@@ -121,16 +122,33 @@ export default function RecordTable({
                     </span>
                   </td>
 
-                  {/* Person Name */}
+                  {/* Person Name & Thumbnail */}
                   <td className="py-3.5 px-4">
-                    <span className="font-bold text-[#1E293B] block group-hover:text-[#176B87] transition-colors">
-                      {rec.full_name}
-                    </span>
-                    {rec.phone && (
-                      <span className="text-[11px] text-[#64748B] font-mono">
-                        {rec.phone}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {rec.photo_path ? (
+                        <div className="w-9 h-9 rounded-full overflow-hidden border border-[#D8E2E8] bg-slate-100 shrink-0 shadow-2xs">
+                          <img
+                            src={getPhotoUrl(rec.photo_path) || ''}
+                            alt={rec.full_name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-[#E8F3F6] text-[#176B87] font-bold text-xs flex items-center justify-center shrink-0 border border-[#D8E2E8]">
+                          {rec.full_name?.charAt(0) || 'भ'}
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-bold text-[#1E293B] block group-hover:text-[#176B87] transition-colors">
+                          {rec.full_name}
+                        </span>
+                        {rec.phone && (
+                          <span className="text-[11px] text-[#64748B] font-mono">
+                            {rec.phone}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </td>
 
                   {/* District & Municipality */}

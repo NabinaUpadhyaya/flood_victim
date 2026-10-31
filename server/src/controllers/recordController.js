@@ -1,6 +1,6 @@
 /**
  * Record Controller
- * Handles CRUD operations for incident records, search, filtering, and audit trail.
+ * Handles CRUD operations for incident records, search, filtering, photo upload, and audit trail.
  */
 
 const pool = require('../config/db');
@@ -31,11 +31,66 @@ function toBool(val) {
   return 0;
 }
 
+// Helper: get base URL of application with protocol and domain
+function getBaseUrl(req) {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, '');
+  if (process.env.BASE_URL) return process.env.BASE_URL.replace(/\/+$/, '');
+  if (!req) return 'http://localhost:5000';
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:5000';
+  return `${proto}://${host}`;
+}
+
+// Helper: convert relative or absolute photo_path to full URL with domain
+function toFullPhotoUrl(req, photoPath) {
+  if (!photoPath) return null;
+  const p = String(photoPath).trim();
+  if (!p) return null;
+  if (p.startsWith('http://') || p.startsWith('https://')) {
+    return p;
+  }
+  const base = getBaseUrl(req);
+  const clean = p.startsWith('/') ? p : `/${p}`;
+  return `${base}${clean}`;
+}
+
+
+// Dedicated Photo Upload Controller
+async function uploadPhoto(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'कुनै तस्विर फाइल प्राप्त भएन। कृपया तस्विर छान्नुहोस्। (No photo file provided)',
+      });
+    }
+
+    const photoPath = toFullPhotoUrl(req, `/uploads/victims/${req.file.filename}`);
+    return res.json({
+      success: true,
+      message: 'फोटो सफलतापूर्वक अपलोड भयो (Photo uploaded successfully)',
+      photo_path: photoPath,
+      filename: req.file.filename,
+    });
+  } catch (error) {
+    console.error('uploadPhoto error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'तस्विर अपलोड गर्दा प्राविधिक त्रुटि भयो (Failed to upload photo)',
+      error: error.message,
+    });
+  }
+}
+
 // Public Submission
 async function createPublicRecord(req, res) {
   try {
     const code = await generateRecordCode();
     const data = req.body;
+
+    const photoPath = req.file
+      ? toFullPhotoUrl(req, `/uploads/victims/${req.file.filename}`)
+      : toFullPhotoUrl(req, data.photo_path);
 
     const query = `
       INSERT INTO incident_records (
@@ -47,7 +102,8 @@ async function createPublicRecord(req, res) {
         is_child, child_guardian_lost, child_separated_from_family, child_school_affected, child_other,
         is_woman, is_pregnant, is_postpartum, is_single_woman, is_woman_led_family, woman_other,
         verification_status, verified_by, data_collector, signature_info, collection_sign_date,
-        created_by
+        photo_path,
+        created_by, submitted_by_name
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
@@ -57,7 +113,8 @@ async function createPublicRecord(req, res) {
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
-        NULL
+        ?,
+        NULL, NULL
       )
     `;
 
@@ -109,6 +166,7 @@ async function createPublicRecord(req, res) {
       data.data_collector || 'सार्वजनिक संकलन (Public User)',
       data.signature_info || null,
       data.collection_sign_date || data.collection_date,
+      photoPath,
     ];
 
     const [result] = await pool.query(query, values);
@@ -123,6 +181,7 @@ async function createPublicRecord(req, res) {
         name: data.full_name,
         district: data.district,
         incident_type: data.incident_type,
+        has_photo: Boolean(photoPath),
       },
     });
 
@@ -131,6 +190,7 @@ async function createPublicRecord(req, res) {
       message: 'तथ्याङ्क सफलतापूर्वक दर्ता भयो! (Record registered successfully)',
       record_code: code,
       record_id: result.insertId,
+      photo_path: photoPath,
     });
   } catch (error) {
     console.error('createPublicRecord error:', error);
@@ -148,6 +208,14 @@ async function createStaffRecord(req, res) {
     const code = req.body.record_code || (await generateRecordCode());
     const data = req.body;
 
+    const photoPath = req.file
+      ? toFullPhotoUrl(req, `/uploads/victims/${req.file.filename}`)
+      : toFullPhotoUrl(req, data.photo_path);
+
+    // Authenticated submitter identity (never trust frontend-provided username)
+    const submitterId = req.user.id;
+    const submitterName = req.user.name || req.user.email;
+
     const query = `
       INSERT INTO incident_records (
         record_code, form_number, district, municipality, ward_number, location, collection_date,
@@ -158,7 +226,8 @@ async function createStaffRecord(req, res) {
         is_child, child_guardian_lost, child_separated_from_family, child_school_affected, child_other,
         is_woman, is_pregnant, is_postpartum, is_single_woman, is_woman_led_family, woman_other,
         verification_status, verified_by, data_collector, signature_info, collection_sign_date,
-        created_by
+        photo_path,
+        created_by, submitted_by_name
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
@@ -168,7 +237,8 @@ async function createStaffRecord(req, res) {
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
-        ?
+        ?,
+        ?, ?
       )
     `;
 
@@ -220,7 +290,9 @@ async function createStaffRecord(req, res) {
       data.data_collector || req.user.name,
       data.signature_info || null,
       data.collection_sign_date || data.collection_date,
-      req.user.id,
+      photoPath,
+      submitterId,
+      submitterName,
     ];
 
     const [result] = await pool.query(query, values);
@@ -236,6 +308,8 @@ async function createStaffRecord(req, res) {
         record_code: code,
         name: data.full_name,
         district: data.district,
+        has_photo: Boolean(photoPath),
+        submitted_by: submitterName,
       },
     });
 
@@ -244,6 +318,8 @@ async function createStaffRecord(req, res) {
       message: 'नयाँ रेकर्ड सफलतापूर्वक सिर्जना गरियो (Record created successfully)',
       record_code: code,
       record_id: result.insertId,
+      photo_path: photoPath,
+      submitted_by: submitterName,
     });
   } catch (error) {
     console.error('createStaffRecord error:', error);
@@ -377,7 +453,9 @@ async function getRecords(req, res) {
     const dataSql = `
       SELECT 
         ir.*,
-        u_create.name AS creator_name,
+        COALESCE(u_create.name, ir.submitted_by_name, '') AS creator_name,
+        COALESCE(u_create.name, ir.submitted_by_name, '') AS submitted_by,
+        u_create.email AS creator_email,
         u_update.name AS updater_name
       FROM incident_records ir
       LEFT JOIN users u_create ON ir.created_by = u_create.id
@@ -389,9 +467,14 @@ async function getRecords(req, res) {
 
     const [rows] = await pool.query(dataSql, [...params, limit, offset]);
 
+    const formattedRows = rows.map((r) => ({
+      ...r,
+      photo_path: toFullPhotoUrl(req, r.photo_path),
+    }));
+
     return res.json({
       success: true,
-      data: rows,
+      data: formattedRows,
       pagination: {
         total,
         page,
@@ -416,7 +499,8 @@ async function getRecordById(req, res) {
     const query = `
       SELECT 
         ir.*,
-        u_create.name AS creator_name,
+        COALESCE(u_create.name, ir.submitted_by_name, '') AS creator_name,
+        COALESCE(u_create.name, ir.submitted_by_name, '') AS submitted_by,
         u_create.email AS creator_email,
         u_update.name AS updater_name,
         u_update.email AS updater_email
@@ -434,9 +518,14 @@ async function getRecordById(req, res) {
       });
     }
 
+    const record = {
+      ...rows[0],
+      photo_path: toFullPhotoUrl(req, rows[0].photo_path),
+    };
+
     return res.json({
       success: true,
-      data: rows[0],
+      data: record,
     });
   } catch (error) {
     console.error('getRecordById error:', error);
@@ -463,6 +552,19 @@ async function updateRecord(req, res) {
       });
     }
 
+    // Determine photo_path:
+    // 1. If a new file was uploaded in this request, use it.
+    // 2. Else if data.photo_path is explicitly provided (string or empty/null), use it.
+    // 3. Otherwise preserve existing photo_path!
+    let resolvedPhotoPath = existing[0].photo_path;
+    if (req.file) {
+      resolvedPhotoPath = toFullPhotoUrl(req, `/uploads/victims/${req.file.filename}`);
+    } else if (data.photo_path !== undefined) {
+      resolvedPhotoPath = toFullPhotoUrl(req, data.photo_path);
+    } else if (resolvedPhotoPath) {
+      resolvedPhotoPath = toFullPhotoUrl(req, resolvedPhotoPath);
+    }
+
     const query = `
       UPDATE incident_records SET
         form_number = ?, district = ?, municipality = ?, ward_number = ?, location = ?, collection_date = ?,
@@ -473,6 +575,7 @@ async function updateRecord(req, res) {
         is_child = ?, child_guardian_lost = ?, child_separated_from_family = ?, child_school_affected = ?, child_other = ?,
         is_woman = ?, is_pregnant = ?, is_postpartum = ?, is_single_woman = ?, is_woman_led_family = ?, woman_other = ?,
         verification_status = ?, verified_by = ?, data_collector = ?, signature_info = ?, collection_sign_date = ?,
+        photo_path = ?,
         updated_by = ?
       WHERE id = ?
     `;
@@ -525,6 +628,7 @@ async function updateRecord(req, res) {
       data.signature_info || existing[0].signature_info,
       data.collection_sign_date || existing[0].collection_sign_date,
 
+      resolvedPhotoPath,
       req.user.id,
       id,
     ];
@@ -545,6 +649,7 @@ async function updateRecord(req, res) {
           verification_status: data.verification_status,
           district: data.district,
           full_name: data.full_name,
+          photo_changed: resolvedPhotoPath !== existing[0].photo_path,
         },
       },
     });
@@ -552,6 +657,7 @@ async function updateRecord(req, res) {
     return res.json({
       success: true,
       message: 'रेकर्ड सफलतापूर्वक अद्यावधिक (Update) गरियो',
+      photo_path: resolvedPhotoPath,
     });
   } catch (error) {
     console.error('updateRecord error:', error);
@@ -616,5 +722,8 @@ module.exports = {
   getRecordById,
   updateRecord,
   deleteRecord,
+  uploadPhoto,
   buildFilterClause,
+  getBaseUrl,
+  toFullPhotoUrl,
 };

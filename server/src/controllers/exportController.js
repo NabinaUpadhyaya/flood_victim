@@ -6,7 +6,7 @@
 
 const pool = require('../config/db');
 const { generateIncidentExcel } = require('../utils/excelGenerator');
-const { buildFilterClause } = require('./recordController');
+const { buildFilterClause, getBaseUrl, toFullPhotoUrl } = require('./recordController');
 const { logAudit } = require('../utils/auditLogger');
 
 async function exportExcel(req, res) {
@@ -14,8 +14,11 @@ async function exportExcel(req, res) {
     const { whereClause, params } = buildFilterClause(req.query);
 
     const sql = `
-      SELECT ir.*
+      SELECT 
+        ir.*,
+        COALESCE(u_create.name, ir.submitted_by_name, '') AS submitted_by
       FROM incident_records ir
+      LEFT JOIN users u_create ON ir.created_by = u_create.id
       ${whereClause}
       ORDER BY ir.id ASC
     `;
@@ -31,7 +34,12 @@ async function exportExcel(req, res) {
     if (req.query.verification_status) filterParts.push(`सत्यापन: ${req.query.verification_status}`);
     const filterDescription = filterParts.length > 0 ? filterParts.join(', ') : 'सम्पूर्ण तथ्याङ्क (All Records)';
 
-    const workbook = await generateIncidentExcel(records, { filterDescription });
+    const baseUrl = getBaseUrl(req);
+    const formattedRecords = records.map((r) => ({
+      ...r,
+      photo_path: toFullPhotoUrl(req, r.photo_path),
+    }));
+    const workbook = await generateIncidentExcel(formattedRecords, { filterDescription, baseUrl });
 
     const now = new Date();
     const dateFormatted = `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}`;

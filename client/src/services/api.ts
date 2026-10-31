@@ -4,10 +4,12 @@
 
 import { FilterParams, IncidentRecord, StatsResponse, User, UserAuditLogsResponse } from '../types';
 
-const API_BASE_URL =
+export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.NEXT_API_URL ||
-  'https://flood-victim.onrender.com/api';
+  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:5000/api'
+    : 'https://flood-victim.onrender.com/api');
 
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -35,6 +37,17 @@ export function clearAuthSession() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem('insec_token');
   localStorage.removeItem('insec_user');
+}
+
+// Convert relative photo_path into full accessible image URL
+export function getPhotoUrl(photoPath?: string | null): string | null {
+  if (!photoPath) return null;
+  if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+    return photoPath;
+  }
+  const cleanBase = API_BASE_URL.replace(/\/api\/?$/, '');
+  const cleanPath = photoPath.startsWith('/') ? photoPath : `/${photoPath}`;
+  return `${cleanBase}${cleanPath}`;
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -80,6 +93,44 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   return data as T;
+}
+
+// Upload Victim Photo
+export async function uploadVictimPhoto(file: File): Promise<{
+  success: boolean;
+  message: string;
+  photo_path: string;
+  filename: string;
+}> {
+  const token = getStoredToken();
+  const formData = new FormData();
+  formData.append('photo', file);
+
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/records/upload-photo`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+  } catch (err: any) {
+    throw new Error(
+      `फोटो अपलोड गर्न सर्भरसँग सम्पर्क हुन सकेन। (${err?.message || 'Failed to connect to server'})`
+    );
+  }
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || 'फोटो अपलोड गर्न सकिएन');
+  }
+
+  return data;
 }
 
 // Public Submission

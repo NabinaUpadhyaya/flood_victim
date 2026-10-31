@@ -8,7 +8,12 @@ const router = express.Router();
 const recordController = require('../controllers/recordController');
 const { publicSubmitLimiter } = require('../middleware/rateLimiter');
 const { validateIncidentRecord } = require('../middleware/validate');
+const { uploadPhotoMiddleware } = require('../middleware/upload');
 
-router.post('/submit', publicSubmitLimiter, validateIncidentRecord, recordController.createPublicRecord);
+// Public Photo Upload (optional)
+router.post('/upload-photo', publicSubmitLimiter, uploadPhotoMiddleware, recordController.uploadPhoto);
+
+// Public Submission (supports multipart photo or json)
+router.post('/submit', publicSubmitLimiter, uploadPhotoMiddleware, validateIncidentRecord, recordController.createPublicRecord);
 
 module.exports = router;

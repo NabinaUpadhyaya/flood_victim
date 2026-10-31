@@ -89,8 +89,12 @@ CREATE TABLE IF NOT EXISTS `incident_records` (
   `signature_info` VARCHAR(255) NULL COMMENT 'हस्ताक्षर / विवरण',
   `collection_sign_date` VARCHAR(30) NULL COMMENT 'मिति',
 
+  -- PHOTO UPLOAD (प्रभावित व्यक्तिको फोटो)
+  `photo_path` VARCHAR(255) NULL COMMENT 'प्रभावित व्यक्तिको तस्विर मार्ग वा URL (Victim photo path/URL)',
+
   -- AUDIT & SYSTEM METADATA
   `created_by` INT NULL COMMENT 'User ID who created if logged in (NULL for public)',
+  `submitted_by_name` VARCHAR(150) NULL COMMENT 'Original submitter name/username for durable exports',
   `updated_by` INT NULL COMMENT 'User ID who last updated',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

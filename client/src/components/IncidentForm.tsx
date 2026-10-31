@@ -17,7 +17,12 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Camera,
+  Upload,
+  Trash2,
+  RefreshCw,
 } from 'lucide-react';
+import { uploadVictimPhoto, getPhotoUrl } from '@/services/api';
 import { IncidentRecord } from '@/types';
 import {
   INCIDENT_TYPES,
@@ -585,6 +590,66 @@ export default function IncidentForm({
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
+  // ─── Photo Upload State ──────────────────────────────────────────────────
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(() => {
+    return initialData.photo_path ? getPhotoUrl(initialData.photo_path) : null;
+  });
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (initialData.photo_path && !selectedFile) {
+      setPhotoPreview(getPhotoUrl(initialData.photo_path));
+    }
+  }, [initialData.photo_path]);
+
+  const handlePhotoSelect = (file: File) => {
+    setPhotoError(null);
+    const validExtensions = ['.jpg', '.jpeg', '.png'];
+    const validMimes = ['image/jpeg', 'image/png', 'image/jpg'];
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+
+    if (!validExtensions.includes(ext) || !validMimes.includes(file.type.toLowerCase())) {
+      setPhotoError('अमान्य फाइल ढाँचा! कृपया JPEG, JPG वा PNG ढाँचाको फोटो मात्र छान्नुहोस्। (Only JPEG, JPG, and PNG images are allowed)');
+      return;
+    }
+
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      setPhotoError('फोटोको आकार धेरै ठूलो भयो! कृपया ५ MB भन्दा कम साइजको फोटो छान्नुहोस्। (Photo size exceeds 5MB limit)');
+      return;
+    }
+
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPhotoPreview(objectUrl);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handlePhotoSelect(e.target.files[0]);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setSelectedFile(null);
+    setPhotoPreview(null);
+    setPhotoError(null);
+    setFormData((prev) => ({ ...prev, photo_path: '' }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleReplacePhoto = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  // ────────────────────────────────────────────────────────────────────────────
+
   // ─── Nepal Cascading Geo Data ───────────────────────────────────────────────
   const ALL_DISTRICTS = getDistricts();
   const availableMunicipalities = formData.district
@@ -813,8 +878,31 @@ export default function IncidentForm({
   const handleConfirmSubmit = async () => {
     setShowConfirmModal(false);
     const currentToday = getTodayStr();
+
+    let finalPhotoPath = formData.photo_path;
+
+    if (selectedFile) {
+      try {
+        setPhotoUploading(true);
+        const uploadRes = await uploadVictimPhoto(selectedFile);
+        if (uploadRes.success && uploadRes.photo_path) {
+          finalPhotoPath = uploadRes.photo_path;
+        } else {
+          throw new Error(uploadRes.message || 'फोटो अपलोड हुन सकेन');
+        }
+      } catch (err: any) {
+        setPhotoError(err.message || 'फोटो अपलोड गर्न असफल भयो। कृपया पुनः प्रयास गर्नुहोस्।');
+        setPhotoUploading(false);
+        window.scrollTo({ top: 300, behavior: 'smooth' });
+        return;
+      } finally {
+        setPhotoUploading(false);
+      }
+    }
+
     const payload = {
       ...formData,
+      photo_path: finalPhotoPath,
       collection_sign_date: currentToday,
     };
     await onSubmit(payload);
@@ -1073,9 +1161,128 @@ export default function IncidentForm({
               className="form-input"
             />
           </div>
+        </div>
+      </div>
 
-         
-         
+      {/* SECTION: प्रभावित व्यक्तिको फोटो (Victim Photo Upload) */}
+      <div className="bg-white rounded-2xl border border-[#D8E2E8] overflow-hidden shadow-xs">
+        <div className="px-5 py-3.5 bg-[#DFF5F2]/40 border-b border-[#D8E2E8] flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Camera className="w-5 h-5 text-[#0F766E]" />
+            <div>
+              <h2 className="text-base font-bold text-[#123B5D]">
+                प्रभावित व्यक्तिको फोटो (Victim Photo)
+              </h2>
+              <p className="text-xs text-[#64748B]">
+                बाढी प्रभावित व्यक्तिको फोटो अपलोड गर्नुहोस् (JPEG, JPG, PNG - अधिकतम ५ MB)
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-[#E8F3F6] text-[#176B87] border border-[#D8E2E8]">
+            ऐच्छिक (Optional)
+          </span>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".jpeg,.jpg,.png,image/jpeg,image/png"
+            className="hidden"
+            id="victim-photo-input"
+          />
+
+          {photoError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2.5 text-xs text-rose-700 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+              <span>{photoError}</span>
+            </div>
+          )}
+
+          {!photoPreview ? (
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  handlePhotoSelect(e.dataTransfer.files[0]);
+                }
+              }}
+              className="border-2 border-dashed border-[#D8E2E8] hover:border-[#176B87] hover:bg-[#F4F8FA] rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-150 group"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-[#DFF5F2] text-[#0F766E] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                <Upload className="w-7 h-7" />
+              </div>
+              <p className="text-sm font-semibold text-[#123B5D] mb-1">
+                यहाँ फोटो छान्नुहोस् वा तानेर ल्याउनुहोस् (Select or Drag & Drop Photo)
+              </p>
+              <p className="text-xs text-[#64748B] max-w-sm mb-3">
+                कम्प्युटर वा मोबाइल ग्यालरीबाट प्रभावित व्यक्तिको स्पष्ट तस्विर चयन गर्नुहोस्
+              </p>
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-[#D8E2E8] text-xs font-semibold text-[#176B87] shadow-xs group-hover:bg-[#176B87] group-hover:text-white transition-colors">
+                <Camera className="w-3.5 h-3.5" />
+                <span>तस्विर छान्नुहोस् (Browse Photo)</span>
+              </span>
+              <p className="text-[11px] text-[#94A3B8] mt-2">
+                स्वीकार्य ढाँचा: JPEG, JPG, PNG | अधिकतम फाइल साइज: ५ MB
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 p-4 bg-[#F4F8FA] rounded-2xl border border-[#D8E2E8]">
+              {/* Photo Preview Container */}
+              <div className="relative w-36 h-36 sm:w-40 sm:h-40 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-slate-200 shrink-0">
+                <img
+                  src={photoPreview}
+                  alt="प्रभावित व्यक्तिको फोटो"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+
+              {/* Photo Information & Controls */}
+              <div className="flex-1 space-y-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-[#0F766E] bg-[#DFF5F2] px-2.5 py-0.5 rounded-full">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      {selectedFile ? 'नयाँ फोटो चयन गरिएको' : 'सुरक्षित फोटो'}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-[#123B5D] mt-1 break-all">
+                    {selectedFile ? selectedFile.name : (formData.photo_path || 'victim-photo.jpg')}
+                  </p>
+                  <p className="text-xs text-[#64748B] mt-0.5">
+                    {selectedFile
+                      ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB (${Math.round(selectedFile.size / 1024)} KB)`
+                      : 'डेटाबेसमा सुरक्षित तस्विर'}
+                  </p>
+                </div>
+
+                {/* Actions: Replace / Remove */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleReplacePhoto}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#D8E2E8] hover:border-[#176B87] hover:text-[#176B87] text-xs font-semibold text-[#1E293B] shadow-xs transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>फोटो बदल्नुहोस् (Replace Photo)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRemovePhoto}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-rose-200 hover:bg-rose-50 text-xs font-semibold text-rose-600 shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>फोटो हटाउनुहोस् (Remove Photo)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1768,13 +1975,13 @@ export default function IncidentForm({
       <div className="pt-2 flex items-center justify-end gap-3">
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || photoUploading}
           className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#176B87] hover:bg-[#123B5D] text-white font-bold text-sm shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 cursor-pointer"
         >
-          {loading ? (
+          {loading || photoUploading ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              <span>पेश गरिँदैछ...</span>
+              <span>{photoUploading ? 'तस्विर सुरक्षित गरिँदैछ...' : 'पेश गरिँदैछ...'}</span>
             </>
           ) : isEdit ? (
             <>
@@ -1859,6 +2066,15 @@ export default function IncidentForm({
                     <span className="font-medium text-[#1E293B]">{formData.incident_date}</span>
                   </div>
                 )}
+                {photoPreview && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#64748B]">तस्विर (Photo):</span>
+                    <span className="font-semibold text-[#0F766E] flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      तस्विर संलग्न गरिएको छ
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1867,7 +2083,7 @@ export default function IncidentForm({
               <button
                 type="button"
                 onClick={handleCancelSubmit}
-                disabled={loading}
+                disabled={loading || photoUploading}
                 className="px-4 py-2 text-xs sm:text-sm font-semibold text-[#64748B] hover:text-[#1E293B] hover:bg-[#E8F3F6] bg-white border border-[#D8E2E8] rounded-xl transition-colors cursor-pointer"
               >
                 रद्द गर्नुहोस् (Cancel)
@@ -1875,13 +2091,13 @@ export default function IncidentForm({
               <button
                 type="button"
                 onClick={handleConfirmSubmit}
-                disabled={loading}
+                disabled={loading || photoUploading}
                 className="flex items-center gap-2 px-5 py-2 text-xs sm:text-sm font-bold text-white bg-[#176B87] hover:bg-[#123B5D] rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 cursor-pointer"
               >
-                {loading ? (
+                {loading || photoUploading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>पेश गरिँदैछ...</span>
+                    <span>{photoUploading ? 'तस्विर सुरक्षित गरिँदैछ...' : 'पेश गरिँदैछ...'}</span>
                   </>
                 ) : (
                   <>

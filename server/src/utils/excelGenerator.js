@@ -51,8 +51,8 @@ async function generateIncidentExcel(records, metadata = {}) {
     pageSetup: { orientation: 'landscape', paperSize: 9 },
   });
 
-  // Title Row 1
-  worksheet.mergeCells('A1:AC1');
+  // Title Row 1 (Merged through Column 31: AE)
+  worksheet.mergeCells('A1:AE1');
   const titleCell = worksheet.getCell('A1');
   titleCell.value = 'अनौपचारिक क्षेत्र सेवा केन्द्र (इन्सेक) - व्यक्तिगत घटना तथा प्रभावित व्यक्ति तथ्याङ्क प्रतिवेदन';
   titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -64,8 +64,8 @@ async function generateIncidentExcel(records, metadata = {}) {
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
   worksheet.getRow(1).height = 36;
 
-  // Subtitle Row 2
-  worksheet.mergeCells('A2:AC2');
+  // Subtitle Row 2 (Merged through Column 31: AE)
+  worksheet.mergeCells('A2:AE2');
   const subtitleCell = worksheet.getCell('A2');
   const dateStr = new Date().toLocaleString('ne-NP', { timeZone: 'Asia/Kathmandu' });
   const filterDesc = metadata.filterDescription || 'सम्पूर्ण रेकर्डहरू (All Records)';
@@ -82,7 +82,7 @@ async function generateIncidentExcel(records, metadata = {}) {
   // Empty separator row
   worksheet.getRow(3).height = 8;
 
-  // Column definitions
+  // Column definitions (31 Columns)
   const columns = [
     { header: 'क्र.सं.', key: 'sn', width: 8 },
     { header: 'दर्ता कोड (Code)', key: 'record_code', width: 18 },
@@ -113,6 +113,8 @@ async function generateIncidentExcel(records, metadata = {}) {
     { header: 'महिला स्थिति', key: 'woman_summary', width: 24 },
     { header: 'सत्यापन अवस्था', key: 'verification_status', width: 18 },
     { header: 'सत्यापनकर्ता / संस्था', key: 'verified_by', width: 20 },
+    { header: 'Submitted By', key: 'submitted_by', width: 24 },
+    { header: 'Photo Path', key: 'photo_path', width: 48 },
   ];
 
   worksheet.getRow(4).values = columns.map(c => c.header);
@@ -164,6 +166,14 @@ async function generateIncidentExcel(records, metadata = {}) {
       }
     }
 
+    const submittedByValue = rec.submitted_by || rec.submitted_by_name || rec.creator_name || '';
+    let photoPathValue = rec.photo_path || '';
+    if (photoPathValue && !photoPathValue.startsWith('http://') && !photoPathValue.startsWith('https://')) {
+      const base = metadata.baseUrl || 'http://localhost:5000';
+      const cleanPath = photoPathValue.startsWith('/') ? photoPathValue : `/${photoPathValue}`;
+      photoPathValue = `${base}${cleanPath}`;
+    }
+
     const rowValues = [
       idx + 1,
       rec.record_code || '',
@@ -194,6 +204,8 @@ async function generateIncidentExcel(records, metadata = {}) {
       womanDetails,
       VERIFICATION_MAP[rec.verification_status] || rec.verification_status || '',
       rec.verified_by || '-',
+      submittedByValue,
+      photoPathValue,
     ];
 
     const row = worksheet.addRow(rowValues);

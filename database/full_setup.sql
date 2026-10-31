@@ -93,6 +93,10 @@ CREATE TABLE `incident_records` (
   `signature_info`      VARCHAR(255) NULL COMMENT 'हस्ताक्षर / विवरण',
   `collection_sign_date` VARCHAR(30) NULL COMMENT 'मिति',
 
+  -- PHOTO & SUBMITTER
+  `photo_path`        VARCHAR(255) NULL COMMENT 'Relative path of uploaded victim photo, e.g. /uploads/victims/file.jpg',
+  `submitted_by_name` VARCHAR(150) NULL COMMENT 'Denormalized display name of original submitter (snapshot at creation)',
+
   -- AUDIT COLUMNS
   `created_by` INT NULL,
   `updated_by` INT NULL,
